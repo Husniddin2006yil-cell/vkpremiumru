@@ -9,7 +9,7 @@ VKMUSICX — ЛОГИКА MINI APP
 - демо-анимацию
 - PRO / PREMIUM
 
-Настоящая оплата ⭐ Stars будет подключена позже.
+Оплата Telegram Stars подключена через отдельный Cloudflare Worker.
 */
 
 
@@ -383,37 +383,116 @@ document
 // PRO / PREMIUM
 // ==========================================
 
-const botUsername = "VkMuzicXbot";
+const PAYMENTS_API_URL = "https://vkmusicx-stars-payments.husniddin2006yil.workers.dev";
 
-function openBotPurchaseLink(url) {
-    if (tg?.openTelegramLink) {
-        tg.openTelegramLink(url);
+function showPaymentMessage(title, message) {
+    if (tg?.showPopup) {
+        tg.showPopup({
+            title,
+            message,
+            buttons: [{ id: "ok", type: "ok", text: "OK" }]
+        });
         return;
     }
-
-    window.open(url, "_blank", "noopener,noreferrer");
+    window.alert(`${title}\n\n${message}`);
 }
 
 function confirmPlanPurchase(plan, price) {
     const planName = plan === "pro" ? "PRO" : "PREMIUM";
-    const message = `Оформить ${planName} за ⭐${price} Stars и перейти к @${botUsername}?`;
-    const botUrl = `https://t.me/${botUsername}?start=buy_${plan}`;
+    const message = `${planName}: ⭐${price} har 30 kunda. Obuna avtomatik uzayadi; istalgan payt botga /cancel yuborib to‘xtatishingiz mumkin.`;
 
     if (tg?.showPopup) {
-        tg.showPopup({
-            title: `Подключить ${planName}?`,
-            message,
-            buttons: [
-                { id: "confirm", type: "default", text: "Да, перейти" },
-                { id: "cancel", type: "cancel", text: "Отмена" }
-            ]
-        }, buttonId => {
-            if (buttonId === "confirm") openBotPurchaseLink(botUrl);
+        return new Promise(resolve => {
+            tg.showPopup({
+                title: `${planName} obunasi`,
+                message,
+                buttons: [
+                    { id: "confirm", type: "default", text: "Davom etish" },
+                    { id: "cancel", type: "cancel", text: "Bekor qilish" }
+                ]
+            }, buttonId => resolve(buttonId === "confirm"));
         });
+    }
+
+    return Promise.resolve(window.confirm(`${message}\n\nTo‘lovni Telegram ichida oching.`));
+}
+
+async function refreshSubscriptionStatus() {
+    if (!tg?.initData) return null;
+
+    try {
+        const response = await fetch(`${PAYMENTS_API_URL}/api/status`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ initData: tg.initData })
+        });
+        if (!response.ok) return null;
+
+        const status = await response.json();
+        const statusElement = document.querySelector(".user-status");
+        if (statusElement) {
+            if (status.active) {
+                const until = new Date(status.expiresAt * 1000).toLocaleDateString("ru-RU");
+                statusElement.textContent = `${status.plan.toUpperCase()} · ДО ${until}`;
+            } else {
+                statusElement.textContent = "FREE PLAN";
+            }
+        }
+        return status;
+    } catch (error) {
+        console.warn("Subscription status is temporarily unavailable:", error);
+        return null;
+    }
+}
+
+async function waitForPaymentActivation() {
+    for (let attempt = 0; attempt < 8; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 1200));
+        const status = await refreshSubscriptionStatus();
+        if (status?.active) return status;
+    }
+    return null;
+}
+
+async function startStarsPurchase(plan, price, button) {
+    if (!tg?.initData || typeof tg.openInvoice !== "function") {
+        showPaymentMessage("Telegram ichida oching", "Haqiqiy Stars to‘lovi Telegram Mini App ichida ishlaydi.");
         return;
     }
 
-    if (window.confirm(message)) openBotPurchaseLink(botUrl);
+    const confirmed = await confirmPlanPurchase(plan, price);
+    if (!confirmed) return;
+
+    button.disabled = true;
+    try {
+        const response = await fetch(`${PAYMENTS_API_URL}/api/create-invoice`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ plan, initData: tg.initData })
+        });
+        const invoice = await response.json().catch(() => ({}));
+        if (!response.ok || !invoice.invoiceUrl) {
+            throw new Error(invoice.error || "Invoice yaratilmadi. Keyinroq qayta urinib ko‘ring.");
+        }
+
+        tg.openInvoice(invoice.invoiceUrl, async status => {
+            if (status === "paid" || status === "pending") {
+                const activated = await waitForPaymentActivation();
+                if (activated?.active) {
+                    const until = new Date(activated.expiresAt * 1000).toLocaleDateString("ru-RU");
+                    showPaymentMessage("To‘lov qabul qilindi", `${activated.plan.toUpperCase()} ${until} gacha faollashtirildi.`);
+                } else {
+                    showPaymentMessage("To‘lov tekshirilmoqda", "Telegram to‘lovni tasdiqlashi bilan obuna avtomatik faollashadi. Birozdan keyin profilni yangilang.");
+                }
+            } else if (status === "failed") {
+                showPaymentMessage("To‘lov bajarilmadi", "Telegram invoice oynasida qayta urinib ko‘ring yoki /paysupport ga murojaat qiling.");
+            }
+        });
+    } catch (error) {
+        showPaymentMessage("To‘lovni ochib bo‘lmadi", error.message || "Keyinroq qayta urinib ko‘ring.");
+    } finally {
+        setTimeout(() => { button.disabled = false; }, 1500);
+    }
 }
 
 const buyButtons =
@@ -433,24 +512,14 @@ buyButtons.forEach(
                     button.dataset.plan;
                 const price =
                     button.dataset.price;
-
-                console.log(
-                    "Тариф:",
-                    plan
-                );
-
-
-                console.log(
-                    "Stars:",
-                    price
-                );
-
-                confirmPlanPurchase(plan, price);
+                void startStarsPurchase(plan, price, button);
             }
         );
 
     }
 );
+
+void refreshSubscriptionStatus();
 
 
 // ==========================================
