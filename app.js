@@ -160,48 +160,178 @@ const visualizer =
         "visualizer"
     );
 
+const audioFile = document.getElementById("audioFile");
+const audioPlayer = document.getElementById("audioPlayer");
+const trackPanel = document.getElementById("trackPanel");
+const trackName = document.getElementById("trackName");
+const trackStatus = document.getElementById("trackStatus");
+const seekBar = document.getElementById("seekBar");
+const timeLabel = document.getElementById("timeLabel");
+const volumeControl = document.getElementById("volumeControl");
+const speedControl = document.getElementById("speedControl");
+const bassToggle = document.getElementById("bassToggle");
+const spatialToggle = document.getElementById("spatialToggle");
 
-// Сейчас это только визуальная демонстрация
-let playing = false;
+let audioUrl = null;
+let audioContext = null;
+let sourceNode = null;
+let bassFilter = null;
+let stereoPanner = null;
+let panDepth = null;
+let panOscillator = null;
+let bassEnabled = false;
+let spatialEnabled = false;
 
+function formatTime(seconds) {
+    if (!Number.isFinite(seconds)) return "0:00";
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
+}
 
-demoBtn.addEventListener(
-    "click",
-    () => {
+function updateTime() {
+    const duration = audioPlayer.duration || 0;
+    const currentTime = audioPlayer.currentTime || 0;
+    timeLabel.textContent = `${formatTime(currentTime)} / ${formatTime(duration)}`;
+    seekBar.value = duration ? String((currentTime / duration) * 1000) : "0";
+}
 
-        // Вибрация
-        haptic("medium");
+function setPlayingState(isPlaying) {
+    visualizer?.classList.toggle("playing", isPlaying);
+    demoBtn.textContent = isPlaying ? "■ ПАУЗА" : "▶ СЛУШАТЬ";
+    if (isPlaying) trackStatus.textContent = "Играет";
+    else if (audioPlayer.currentTime > 0 && !audioPlayer.ended) trackStatus.textContent = "Пауза";
+}
 
-        // Меняем состояние
-        playing =
-            !playing;
+function setupAudioEffects() {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass || sourceNode) return;
 
+    try {
+        audioContext = new AudioContextClass();
+        sourceNode = audioContext.createMediaElementSource(audioPlayer);
+        bassFilter = audioContext.createBiquadFilter();
+        bassFilter.type = "lowshelf";
+        bassFilter.frequency.value = 150;
+        bassFilter.gain.value = bassEnabled ? 9 : 0;
 
-        if (playing) {
+        sourceNode.connect(bassFilter);
+        if (audioContext.createStereoPanner) {
+            stereoPanner = audioContext.createStereoPanner();
+            stereoPanner.pan.value = 0;
+            bassFilter.connect(stereoPanner);
+            stereoPanner.connect(audioContext.destination);
 
-            // Запускаем анимацию
-            visualizer
-                .classList
-                .add("playing");
-
-            // Меняем текст кнопки
-            demoBtn.textContent =
-                "■ STOP DEMO";
-
+            panDepth = audioContext.createGain();
+            panDepth.gain.value = spatialEnabled ? 0.75 : 0;
+            panOscillator = audioContext.createOscillator();
+            panOscillator.type = "sine";
+            panOscillator.frequency.value = 0.12;
+            panOscillator.connect(panDepth);
+            panDepth.connect(stereoPanner.pan);
+            panOscillator.start();
         } else {
-
-            // Останавливаем анимацию
-            visualizer
-                .classList
-                .remove("playing");
-
-            // Возвращаем текст
-            demoBtn.textContent =
-                "▶ TAP TO LISTEN";
+            bassFilter.connect(audioContext.destination);
         }
 
+        bassToggle.disabled = false;
+        spatialToggle.disabled = !stereoPanner;
+    } catch (error) {
+        console.warn("Audio effects are unavailable:", error);
+        trackStatus.textContent = "Играет без эффектов";
+        bassToggle.disabled = true;
+        spatialToggle.disabled = true;
+        if (sourceNode && audioContext) {
+            try { sourceNode.connect(audioContext.destination); } catch (_) { /* already connected */ }
+        }
     }
-);
+}
+
+audioFile.addEventListener("change", () => {
+    const file = audioFile.files?.[0];
+    if (!file) return;
+
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
+    audioPlayer.pause();
+    audioUrl = URL.createObjectURL(file);
+    audioPlayer.src = audioUrl;
+    audioPlayer.load();
+    trackName.textContent = file.name;
+    trackStatus.textContent = "Загружается";
+    trackPanel.hidden = false;
+    demoBtn.disabled = false;
+    seekBar.value = "0";
+    timeLabel.textContent = "0:00 / 0:00";
+    setupAudioEffects();
+    haptic("light");
+});
+
+demoBtn.addEventListener("click", async () => {
+    haptic("medium");
+    if (!audioPlayer.src) return;
+
+    try {
+        setupAudioEffects();
+        if (audioContext?.state === "suspended") await audioContext.resume();
+        if (audioPlayer.paused) await audioPlayer.play();
+        else audioPlayer.pause();
+    } catch (error) {
+        trackStatus.textContent = "Не удалось воспроизвести файл";
+        console.error("Audio playback failed:", error);
+    }
+});
+
+audioPlayer.addEventListener("play", () => setPlayingState(true));
+audioPlayer.addEventListener("pause", () => setPlayingState(false));
+audioPlayer.addEventListener("ended", () => {
+    setPlayingState(false);
+    trackStatus.textContent = "Готово";
+});
+audioPlayer.addEventListener("loadedmetadata", () => {
+    trackStatus.textContent = "Готово";
+    updateTime();
+});
+audioPlayer.addEventListener("timeupdate", updateTime);
+audioPlayer.addEventListener("error", () => {
+    trackStatus.textContent = "Формат файла не поддерживается";
+});
+
+seekBar.addEventListener("input", () => {
+    if (Number.isFinite(audioPlayer.duration) && audioPlayer.duration > 0) {
+        audioPlayer.currentTime = audioPlayer.duration * (Number(seekBar.value) / 1000);
+    }
+});
+
+volumeControl.addEventListener("input", () => {
+    audioPlayer.volume = Number(volumeControl.value);
+});
+
+speedControl.addEventListener("change", () => {
+    audioPlayer.playbackRate = Number(speedControl.value);
+});
+
+bassToggle.addEventListener("click", () => {
+    haptic("light");
+    bassEnabled = !bassEnabled;
+    if (bassFilter) bassFilter.gain.setTargetAtTime(bassEnabled ? 9 : 0, audioContext.currentTime, 0.08);
+    bassToggle.textContent = `🔊 Bass Boost: ${bassEnabled ? "ON" : "OFF"}`;
+    bassToggle.classList.toggle("active", bassEnabled);
+});
+
+spatialToggle.addEventListener("click", () => {
+    haptic("light");
+    spatialEnabled = !spatialEnabled;
+    if (panDepth) panDepth.gain.setTargetAtTime(spatialEnabled ? 0.75 : 0, audioContext.currentTime, 0.12);
+    spatialToggle.textContent = `🎧 8D Audio: ${spatialEnabled ? "ON" : "OFF"}`;
+    spatialToggle.classList.toggle("active", spatialEnabled);
+});
+
+volumeControl.dispatchEvent(new Event("input"));
+
+window.addEventListener("pagehide", () => {
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
+    if (audioContext && audioContext.state !== "closed") audioContext.close();
+});
 
 
 // ==========================================
@@ -253,6 +383,39 @@ document
 // PRO / PREMIUM
 // ==========================================
 
+const botUsername = "VkMuzicXbot";
+
+function openBotPurchaseLink(url) {
+    if (tg?.openTelegramLink) {
+        tg.openTelegramLink(url);
+        return;
+    }
+
+    window.open(url, "_blank", "noopener,noreferrer");
+}
+
+function confirmPlanPurchase(plan, price) {
+    const planName = plan === "pro" ? "PRO" : "PREMIUM";
+    const message = `Оформить ${planName} за ⭐${price} Stars и перейти к @${botUsername}?`;
+    const botUrl = `https://t.me/${botUsername}?start=buy_${plan}`;
+
+    if (tg?.showPopup) {
+        tg.showPopup({
+            title: `Подключить ${planName}?`,
+            message,
+            buttons: [
+                { id: "confirm", type: "default", text: "Да, перейти" },
+                { id: "cancel", type: "cancel", text: "Отмена" }
+            ]
+        }, buttonId => {
+            if (buttonId === "confirm") openBotPurchaseLink(botUrl);
+        });
+        return;
+    }
+
+    if (window.confirm(message)) openBotPurchaseLink(botUrl);
+}
+
 const buyButtons =
     document.querySelectorAll(
         ".buy-btn"
@@ -265,20 +428,11 @@ buyButtons.forEach(
         button.addEventListener(
             "click",
             () => {
-
-                // Вибрация
                 haptic("medium");
-
-
-                // Получаем тариф
                 const plan =
                     button.dataset.plan;
-
-
-                // Получаем цену
                 const price =
                     button.dataset.price;
-
 
                 console.log(
                     "Тариф:",
@@ -291,52 +445,7 @@ buyButtons.forEach(
                     price
                 );
 
-
-                /*
-                Сейчас показываем только окно.
-
-                Позже здесь будет НАСТОЯЩАЯ
-                оплата через Telegram Stars.
-                */
-
-                if (tg?.showPopup) {
-
-                    tg.showPopup({
-
-                        title:
-                            plan === "pro"
-                                ? "PRO"
-                                : "PREMIUM",
-
-                        message:
-                            `Оплата ⭐${price} Stars будет подключена на следующем этапе.`,
-
-                        buttons: [
-
-                            {
-                                id: "continue",
-                                type: "default",
-                                text: "Продолжить"
-                            },
-
-                            {
-                                id: "cancel",
-                                type: "cancel",
-                                text: "Отмена"
-                            }
-
-                        ]
-
-                    });
-
-                } else {
-
-                    alert(
-                        `⭐${price} Stars`
-                    );
-
-                }
-
+                confirmPlanPurchase(plan, price);
             }
         );
 

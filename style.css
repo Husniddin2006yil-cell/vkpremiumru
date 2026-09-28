@@ -667,3 +667,167 @@ footer {
     }
 
 }
+
+/* MUSIC LAB player */
+.upload-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    margin-top: 22px;
+    padding: 15px 18px;
+    border: 1px dashed rgba(0, 234, 255, 0.55);
+    border-radius: 16px;
+    color: var(--blue);
+    background: rgba(0, 234, 255, 0.06);
+    font-weight: 800;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.2s;
+}
+
+.upload-btn:hover,
+.upload-btn:active {
+    background: rgba(0, 234, 255, 0.12);
+    transform: translateY(-1px);
+}
+
+.file-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    clip-path: inset(50%);
+}
+
+.track-panel {
+    margin-top: 22px;
+    padding: 17px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 18px;
+    background: rgba(5, 5, 7, 0.55);
+    text-align: left;
+}
+
+.track-panel[hidden] {
+    display: none;
+}
+
+.track-info,
+.player-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.track-name {
+    overflow: hidden;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.track-status,
+.time-label {
+    flex: 0 0 auto;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.track-panel .audio-visualizer {
+    margin: 12px 0;
+}
+
+.play-btn {
+    min-width: 140px;
+}
+
+.play-btn:disabled,
+.effect-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+}
+
+.seek-control,
+.range-control input {
+    width: 100%;
+    accent-color: var(--blue);
+}
+
+.seek-control {
+    margin: 8px 0 14px;
+}
+
+.audio-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.range-control,
+.select-control {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    justify-content: center;
+    gap: 7px;
+    padding: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 12px;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.select-control select {
+    width: 100%;
+    padding: 5px;
+    border: 0;
+    border-radius: 7px;
+    color: #fff;
+    background: #17171e;
+    font: inherit;
+}
+
+.effect-btn {
+    min-height: 42px;
+    padding: 9px 7px;
+    border: 1px solid rgba(0, 234, 255, 0.22);
+    border-radius: 12px;
+    color: #d9fbff;
+    background: #101319;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.effect-btn.active {
+    border-color: var(--blue);
+    color: var(--blue);
+    background: rgba(0, 234, 255, 0.12);
+    box-shadow: 0 0 16px rgba(0, 234, 255, 0.1);
+}
+
+.privacy-note {
+    margin-top: 13px !important;
+    font-size: 10px;
+    line-height: 1.45;
+    text-align: center;
+}
+
+@media (max-width: 380px) {
+    .track-panel {
+        padding: 12px;
+    }
+
+    .audio-controls {
+        gap: 7px;
+    }
+
+    .play-btn {
+        min-width: 120px;
+    }
+}

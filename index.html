@@ -66,35 +66,67 @@
     <section class="demo-card">
 
         <div class="section-label">
-            LIVE DEMO
+            MUSIC LAB · AUDIO PLAYER
         </div>
 
-        <h2>BASS BOOST</h2>
+        <h2>Твоя музыка</h2>
 
         <p>
-            Услышь разницу
+            Загрузи аудиофайл и слушай с эффектами прямо здесь.
         </p>
 
-        <div class="audio-visualizer" id="visualizer">
+        <label class="upload-btn" for="audioFile">
+            <span>＋</span> Выбрать аудиофайл
+        </label>
+        <input class="file-input" id="audioFile" type="file" accept="audio/*">
 
-            <span></span>
-            <span></span>
-            <span></span>
-            <span></span>
-            <span></span>
-            <span></span>
-            <span></span>
-            <span></span>
-            <span></span>
-            <span></span>
-            <span></span>
-            <span></span>
+        <div class="track-panel" id="trackPanel" hidden>
+            <div class="track-info">
+                <span class="track-name" id="trackName">Трек не выбран</span>
+                <span class="track-status" id="trackStatus">Готово</span>
+            </div>
 
+            <div class="audio-visualizer" id="visualizer" aria-hidden="true">
+                <span></span><span></span><span></span><span></span>
+                <span></span><span></span><span></span><span></span>
+                <span></span><span></span><span></span><span></span>
+            </div>
+
+            <audio id="audioPlayer" preload="metadata"></audio>
+
+            <div class="player-row">
+                <button class="demo-btn play-btn" id="demoBtn" type="button" disabled>
+                    ▶ СЛУШАТЬ
+                </button>
+                <span class="time-label" id="timeLabel">0:00 / 0:00</span>
+            </div>
+            <input class="seek-control" id="seekBar" type="range" min="0" max="1000" value="0" aria-label="Позиция трека">
+
+            <div class="audio-controls">
+                <label class="range-control">
+                    <span>Громкость</span>
+                    <input id="volumeControl" type="range" min="0" max="1" step="0.01" value="0.9">
+                </label>
+
+                <label class="select-control">
+                    <span>Скорость</span>
+                    <select id="speedControl">
+                        <option value="0.75">0.75×</option>
+                        <option value="1" selected>1×</option>
+                        <option value="1.25">1.25×</option>
+                        <option value="1.5">1.5×</option>
+                    </select>
+                </label>
+
+                <button class="effect-btn" id="bassToggle" type="button" disabled>
+                    🔊 Bass Boost: OFF
+                </button>
+                <button class="effect-btn" id="spatialToggle" type="button" disabled>
+                    🎧 8D Audio: OFF
+                </button>
+            </div>
+            <p class="privacy-note">Файл обрабатывается в браузере и не загружается на сервер.</p>
         </div>
-
-        <button class="demo-btn" id="demoBtn">
-            ▶ TAP TO LISTEN
-        </button>
 
     </section>
 
